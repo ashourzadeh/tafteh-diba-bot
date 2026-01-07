@@ -1,36 +1,42 @@
 <?php
-// index.php
-// ربات تلگرام موقت با دیباگ کامل
-// پاسخ /start و لاگ payload ورودی
 
 $BOT_TOKEN = "8405432251:AAGFsqc2hmo_Y-yc-V2eMTXVPCRct9x6UAE";
 
-// خواندن داده‌های ورودی Telegram
-$content = file_get_contents("php://input");
-$update = json_decode($content, true);
+/**
+ * 👈 خیلی مهم
+ * اینو بعد از اولین پیام، از لاگ تلگرام درمیاریم
+ * فعلاً خالی میذاریم
+ */
+$ADMIN_CHAT_ID = null;
 
-// لاگ ورودی به Logs Railway
-error_log("==== TELEGRAM UPDATE ====");
-error_log(print_r($update, true));
-error_log("========================");
+// دریافت ورودی تلگرام
+$input = file_get_contents("php://input");
+$update = json_decode($input, true);
 
+// اگر هیچ دیتایی نیومده
 if (!$update) {
     exit;
 }
 
-// گرفتن chat_id و متن پیام
+// گرفتن chat_id
 $chat_id = $update['message']['chat']['id'] ?? null;
-$text = trim($update['message']['text'] ?? '');
+$text    = trim($update['message']['text'] ?? '');
 
-// بررسی دستورها
-if ($text === '/start') {
-    sendMessage($chat_id, "سلام 👋\nربات حضور و غیاب تافته فعال شد ✅");
-
-    // ارسال debug پیام به خود کاربر برای بررسی payload
-    sendMessage($chat_id, "DEBUG: Payload دریافت شد و تو Logs ثبت شد.");
+// اگر اولین پیام بود → admin رو ست کن
+if ($ADMIN_CHAT_ID === null && $chat_id) {
+    sendMessage($chat_id, "✅ ربات زنده است\nChat ID شما:\n$chat_id");
 }
 
-// تابع ارسال پیام با لاگ
+// دیباگ: ارسال کل payload به تلگرام
+sendMessage($chat_id, "📦 DEBUG PAYLOAD:\n" . json_encode($update, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+// پاسخ به /start
+if ($text === '/start') {
+    sendMessage($chat_id, "سلام 👋\nربات حضور و غیاب تافته فعال شد ✅");
+}
+
+// ------------------------
+
 function sendMessage($chat_id, $text)
 {
     global $BOT_TOKEN;
@@ -39,23 +45,17 @@ function sendMessage($chat_id, $text)
 
     $data = [
         'chat_id' => $chat_id,
-        'text' => $text
+        'text'    => $text
     ];
 
     $options = [
         'http' => [
-            'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
             'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
             'content' => http_build_query($data),
             'timeout' => 10
         ]
     ];
 
-    $context  = stream_context_create($options);
-    $result = @file_get_contents($url, false, $context);
-
-    // لاگ پاسخ تلگرام
-    error_log("==== TELEGRAM RESPONSE ====");
-    error_log($result);
-    error_log("===========================");
+    file_get_contents($url, false, stream_context_create($options));
 }
