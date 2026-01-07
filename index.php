@@ -1,17 +1,21 @@
 <?php
 // index.php
-// ربات ساده تلگرام برای Webhook
-// پاسخ /start و آماده توسعه
+// ربات تلگرام با دیباگ ساده
+// لاگ پیام‌ها و پاسخ به کاربر
 
-// توکن ربات خودت رو اینجا بگذار
 $BOT_TOKEN = "8405432251:AAGFsqc2hmo_Y-yc-V2eMTXVPCRct9x6UAE";
 
-// خواندن داده‌های ورودی (پیام تلگرام)
+// مسیر فایل لاگ روی RailWay
+$log_file = __DIR__ . "/bot_debug.log";
+
+// گرفتن ورودی تلگرام
 $content = file_get_contents("php://input");
 $update = json_decode($content, true);
 
+// لاگ کردن ورودی
+file_put_contents($log_file, date("Y-m-d H:i:s") . " INPUT: " . print_r($update, true) . "\n", FILE_APPEND);
+
 if (!$update) {
-    // اگر چیزی نبود، خارج شو
     exit;
 }
 
@@ -19,17 +23,17 @@ if (!$update) {
 $chat_id = $update['message']['chat']['id'] ?? null;
 $text = trim($update['message']['text'] ?? '');
 
-// بررسی دستورات
+// بررسی دستورها
 if ($text === '/start') {
     sendMessage($chat_id, "سلام 👋\nربات حضور و غیاب تافته فعال شد ✅");
 }
 
-// تابع ارسال پیام
+// تابع ارسال پیام با لاگ
 function sendMessage($chat_id, $text)
 {
-    global $BOT_TOKEN;
+    global $BOT_TOKEN, $log_file;
     $url = "https://api.telegram.org/bot$BOT_TOKEN/sendMessage";
-    
+
     $data = [
         'chat_id' => $chat_id,
         'text' => $text
@@ -44,5 +48,8 @@ function sendMessage($chat_id, $text)
         ]
     ];
     $context  = stream_context_create($options);
-    file_get_contents($url, false, $context);
+    $result = file_get_contents($url, false, $context);
+
+    // لاگ جواب تلگرام
+    file_put_contents($log_file, date("Y-m-d H:i:s") . " RESPONSE: " . $result . "\n", FILE_APPEND);
 }
