@@ -1,61 +1,88 @@
 <?php
+// ================= HEALTH CHECK =================
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    http_response_code(200);
+    echo "OK";
+    exit;
+}
+// =================================================
 
+
+// ================== CONFIG ==================
 $BOT_TOKEN = "8405432251:AAGFsqc2hmo_Y-yc-V2eMTXVPCRct9x6UAE";
+$API_URL   = "https://api.telegram.org/bot".$BOT_TOKEN;
+$USER_API  = "http://2.187.18.231:2215/api/get_user.php?code=";
+// ============================================
 
-/**
- * 👈 خیلی مهم
- * اینو بعد از اولین پیام، از لاگ تلگرام درمیاریم
- * فعلاً خالی میذاریم
- */
-$ADMIN_CHAT_ID = null;
 
-// دریافت ورودی تلگرام
-$input = file_get_contents("php://input");
-$update = json_decode($input, true);
+// فقط POST (وبهوک تلگرام)
+$update = json_decode(file_get_contents("php://input"), true);
+if (!$update) exit;
 
-// اگر هیچ دیتایی نیومده
-if (!$update) {
+$message  = $update['message'] ?? null;
+$chat_id = $message['chat']['id'] ?? null;
+$text    = trim($message['text'] ?? '');
+
+if (!$chat_id) exit;
+
+
+// ================= FUNCTIONS =================
+function sendMessage($chat_id, $text)
+{
+    global $API_URL;
+
+    file_get_contents(
+        $API_URL . "/sendMessage?" . http_build_query([
+            'chat_id' => $chat_id,
+            'text' => $text,
+            'parse_mode' => 'HTML'
+        ])
+    );
+}
+
+function getUserInfo($code)
+{
+    global $USER_API;
+
+    $response = @file_get_contents($USER_API . urlencode($code));
+    if ($response === false) {
+        return false;
+    }
+
+    $json = json_decode($response, true);
+    if (!$json || $json['ok'] !== true) {
+        return false;
+    }
+
+    return trim($json['fname']);
+}
+
+// =============================================
+
+
+// ================= BOT LOGIC =================
+if ($text === "/start") {
+    sendMessage($chat_id,
+        "سلام 👋\n\n".
+        "به <b>ربات حضور و غیاب تافته</b> خوش آمدید ✅\n\n".
+        "لطفاً <b>کد پرسنلی</b> خود را وارد کنید:"
+    );
     exit;
 }
 
-// گرفتن chat_id
-$chat_id = $update['message']['chat']['id'] ?? null;
-$text    = trim($update['message']['text'] ?? '');
+if (preg_match('/^\d+$/', $text)) {
 
-// اگر اولین پیام بود → admin رو ست کن
-if ($ADMIN_CHAT_ID === null && $chat_id) {
-    sendMessage($chat_id, "✅ ربات زنده است\nChat ID شما:\n$chat_id");
+    sendMessage($chat_id, "⏳ در حال بررسی اطلاعات...");
+
+    $fname = getUserInfo($text);
+
+    if ($fname) {
+        sendMessage($chat_id, "✅ خوش آمدید <b>$fname</b>");
+    } else {
+        sendMessage($chat_id, "❌ کد پرسنلی نامعتبر است.");
+        // sendMessage($chat_id, "DEBUG API:\n".$response);
+    }
+    exit;
 }
 
-// دیباگ: ارسال کل payload به تلگرام
-sendMessage($chat_id, "📦 DEBUG PAYLOAD:\n" . json_encode($update, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
-// پاسخ به /start
-if ($text === '/start') {
-    sendMessage($chat_id, "سلام 👋\nربات حضور و غیاب تافته فعال شد ✅");
-}
-
-// ------------------------
-
-function sendMessage($chat_id, $text)
-{
-    global $BOT_TOKEN;
-
-    $url = "https://api.telegram.org/bot$BOT_TOKEN/sendMessage";
-
-    $data = [
-        'chat_id' => $chat_id,
-        'text'    => $text
-    ];
-
-    $options = [
-        'http' => [
-            'method'  => 'POST',
-            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
-            'content' => http_build_query($data),
-            'timeout' => 10
-        ]
-    ];
-
-    file_get_contents($url, false, stream_context_create($options));
-}
+sendMessage($chat_id, "⚠️ لطفاً فقط کد پرسنلی عددی ارسال کنید.");
